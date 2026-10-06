@@ -40,7 +40,10 @@ fn default_period() -> u64 {
 
 impl Credential {
     pub fn summary(&self) -> String {
-        format!("{}, {} digits, {}s", self.algorithm, self.digits, self.period)
+        format!(
+            "{}, {} digits, {}s",
+            self.algorithm, self.digits, self.period
+        )
     }
 
     pub fn to_storage(&self) -> anyhow::Result<String> {
@@ -312,7 +315,10 @@ mod tests {
         .unwrap()
         .generate(59)
         .to_string();
-        let sha256 = totp_from_credential(&parsed).unwrap().generate(59).to_string();
+        let sha256 = totp_from_credential(&parsed)
+            .unwrap()
+            .generate(59)
+            .to_string();
         assert_ne!(sha1, sha256);
         assert_eq!(sha256.len(), 8);
     }
@@ -333,10 +339,7 @@ mod tests {
 
     fn qr_data_uri(payload: &str) -> String {
         let code = QrCode::new(payload.as_bytes()).unwrap();
-        let image = code
-            .render::<Luma<u8>>()
-            .min_dimensions(200, 200)
-            .build();
+        let image = code.render::<Luma<u8>>().min_dimensions(200, 200).build();
         let mut png = Vec::new();
         image
             .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)

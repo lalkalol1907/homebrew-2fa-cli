@@ -3,6 +3,9 @@ name = "twofa"
 version = "0.1.0"
 edition = "2024"
 description = "TOTP 2FA codes from the terminal"
+license = "MIT"
+homepage = "https://github.com/lalkalol1907/2fa-cli"
+repository = "https://github.com/lalkalol1907/2fa-cli"
 publish = false
 autobins = false
 

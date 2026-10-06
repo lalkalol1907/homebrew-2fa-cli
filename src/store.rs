@@ -87,8 +87,7 @@ impl Store {
 
     fn save(&self) -> anyhow::Result<()> {
         let dir = self.path.parent().context("invalid config path")?;
-        fs::create_dir_all(dir)
-            .with_context(|| format!("failed to create {}", dir.display()))?;
+        fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
         set_mode(dir, 0o700)?;
 
         let data = serde_json::to_string_pretty(&AccountsFile {

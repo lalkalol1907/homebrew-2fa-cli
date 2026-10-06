@@ -13,6 +13,7 @@ use crate::totp::{current_code, parse_secret_input};
 #[derive(Parser)]
 #[command(
     name = "2fa",
+    version,
     about = "Generate TOTP 2FA codes",
     after_help = "\
 Examples:
@@ -59,7 +60,11 @@ fn run() -> anyhow::Result<()> {
     }
 
     let cli = Cli::parse();
-    match (cli.action.as_deref(), cli.name.as_deref(), cli.payload.as_deref()) {
+    match (
+        cli.action.as_deref(),
+        cli.name.as_deref(),
+        cli.payload.as_deref(),
+    ) {
         (None, None, None) => show(None, cli.copy),
         (Some("add"), Some(name), payload) => {
             reject_copy(cli.copy)?;
@@ -140,7 +145,12 @@ fn list() -> anyhow::Result<()> {
         eprintln!("no accounts; add one with `2fa add <name>`");
         return Ok(());
     }
-    let width = store.names().iter().map(|name| name.len()).max().unwrap_or(0);
+    let width = store
+        .names()
+        .iter()
+        .map(|name| name.len())
+        .max()
+        .unwrap_or(0);
     for name in store.names() {
         let credential = store.credential(name)?;
         println!("{name:width$}  {}", credential.summary());

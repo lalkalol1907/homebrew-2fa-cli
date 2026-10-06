@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
 
+# Prevent simultaneous publication attempts for the same tag.
+concurrency:
+  group: binary-release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -19,12 +24,21 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a tag from master
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/master
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - name: Check release version
         run: |
           VERSION=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -n 1)
           test "$GITHUB_REF_NAME" = "v$VERSION"
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
+      - run: ruby tests/homebrew_delivery_test.rb
       - run: bash scripts/package-release.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -32,8 +46,33 @@ jobs:
           path: dist/2fa-*-${{ matrix.target }}.tar.gz
           if-no-files-found: error
 
-  publish:
+  verify:
     needs: build
+    strategy:
+      matrix:
+        os: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: dist
+      - name: Verify binary installation without compiler dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew tap --custom-remote lalkalol1907/2fa-cli "$GITHUB_WORKSPACE"
+          FORMULA="$(brew --repository lalkalol1907/2fa-cli)/Formula/twofa.rb"
+          ruby scripts/generate-homebrew.rb dist "$FORMULA" "file://$GITHUB_WORKSPACE/dist"
+          test -z "$(brew deps lalkalol1907/2fa-cli/twofa)"
+          brew install lalkalol1907/2fa-cli/twofa
+          brew test lalkalol1907/2fa-cli/twofa
+
+  publish:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -49,8 +88,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           cd dist
+          # On retry, reuse the already published immutable release formula.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft > release.json; then
+            if [ "$(jq -r .isDraft release.json)" = false ]; then
+              gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern twofa.rb --clobber
+              exit 0
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --verify-tag --generate-notes --draft
+          fi
           sha256sum *.tar.gz > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --generate-notes --draft *.tar.gz twofa.rb SHA256SUMS
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --clobber *.tar.gz twofa.rb SHA256SUMS
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+      - name: Deliver formula to master
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ruby scripts/publish-homebrew.rb dist/twofa.rb

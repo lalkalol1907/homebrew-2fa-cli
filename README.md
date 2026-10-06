@@ -19,7 +19,7 @@ tap, so installing it does not require acceptance into `homebrew/core`.
 The binary release formula downloads a ready-made executable for Apple Silicon
 or Intel and installs Bash completions. It has no Rust or LLVM dependencies.
 Requires macOS 14 (Sonoma) or newer. The source formula remains active until
-the binary release is published and `scripts/update-homebrew.sh` is run.
+the first binary release workflow successfully delivers the generated formula.
 
 ```sh
 2fa add github                 # Prompts for a secret without echoing it
@@ -50,49 +50,39 @@ CI checks Apple Silicon and Intel macOS, plus builds and tests the Homebrew
 formula against the current checkout. The formula test uses a temporary account
 index and does not write secrets to Keychain.
 
-## Publish a binary Homebrew release
+## Release process
 
-The repository itself is the tap; no second GitHub repository is needed.
-The existing tags remain unchanged. The next version is **0.1.1**.
+1. Update `Cargo.toml` and `Cargo.lock` to the new version with your changes.
+2. Merge into `master`.
+3. Create and push the matching tag, for example **v0.1.1**.
 
-1. Commit and push these changes yourself, including `Cargo.lock`.
-2. Create and push **v0.1.1** on that commit. The Binary release workflow builds
-   and tests Apple Silicon and Intel binaries, then publishes both archives,
-   their checksums and a generated `twofa.rb` in a GitHub Release.
-3. Wait for Binary release to finish successfully, then run:
+That is all the release author needs to do. The Binary release workflow:
 
-   ```sh
-   bash scripts/update-homebrew.sh
-   ```
+- Checks that the tag belongs to master and matches the Cargo version.
+- Builds, tests and packages Apple Silicon and Intel binaries.
+- Installs both packages through Homebrew and runs the formula's functional tests.
+- Publishes the binary archives, SHA-256 checksums and formula in a GitHub Release.
+- Automatically commits the generated `Formula/twofa.rb` to master using
+  GitHub Actions' built-in token. The formula downloads binaries without Rust or LLVM.
 
-   This downloads both published archives, checks their versions, and replaces
-   `Formula/twofa.rb` with the binary formula containing their SHA-256 checksums.
-   It removes the Rust build dependency. It never commits or pushes changes.
-4. Commit and push the updated formula, then verify:
+No local release scripts, manual formula commits or release PRs are required.
+The generated commit changes only the formula. Delivery retries re-read its
+current SHA, and an older release cannot replace a newer formula. Re-running
+an already published release reuses its published formula and does not replace
+its binaries. Never move a published tag.
 
-   ```sh
-   brew update
-   brew upgrade lalkalol1907/2fa-cli/twofa
-   brew test lalkalol1907/2fa-cli/twofa
-   ```
+The workflow requests `contents: write`. The repository must allow GitHub Actions
+updates to `Formula/twofa.rb` on master. If branch protection requires all changes
+to go through a PR, configure an automation actor with permission to bypass that
+rule; the ordinary built-in token cannot bypass protected branch rules. Otherwise
+binary publication succeeds but formula delivery fails visibly in Actions.
 
-For a fresh installation, use the tap and install commands above. Do not pass
-`--build-from-source`. Publishing the release alone does not update the tap;
-step 4 is required. Existing Rust/LLVM installations are not removed by upgrading
-2fa; `brew autoremove` can remove dependencies no longer required by any package.
+Existing users get the new binary with `brew update` and `brew upgrade twofa`.
+This repository is a custom tap; delivery does not depend on `homebrew/core`.
 
-For later releases, update the Cargo version and lockfile, publish a matching
-tag, then repeat steps 3–4. Never move a published tag. The binary formula is
-for this custom tap; it is not a source-built `homebrew/core` submission.
-
-To build a local native archive for inspection:
-
-```sh
-bash scripts/package-release.sh
-```
-
-Archives include the binary, MIT license, version marker and Bash completions.
-Packaging rejects non-system dynamic library dependencies.
+CI uses `scripts/` to package binaries, generate the checksummed formula and
+deliver it to master. Archives include the binary, MIT license, version marker
+and Bash completions. Packaging rejects non-system dynamic library dependencies.
 
 ## License
 

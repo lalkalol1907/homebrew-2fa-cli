@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
 
 permissions:
@@ -21,9 +22,8 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
-      - run: cargo build --release --locked
-      - run: ./target/release/2fa --version
       - run: bash -n completions/2fa.bash scripts/*.sh
+      - run: ruby tests/homebrew_delivery_test.rb
       - run: bash scripts/package-release.sh
       - uses: actions/upload-artifact@v4
         with:

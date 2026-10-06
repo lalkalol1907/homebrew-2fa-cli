@@ -10,7 +10,6 @@ base64 image data URIs. Copy a code to the clipboard with `-c`.
 After the first release tag and formula have been published:
 
 ```sh
-brew tap lalkalol1907/2fa-cli https://github.com/lalkalol1907/2fa-cli
 brew install lalkalol1907/2fa-cli/twofa
 ```
 

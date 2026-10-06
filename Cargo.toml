@@ -1,6 +1,6 @@
 [package]
 name = "twofa"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "TOTP 2FA codes from the terminal"
 license = "MIT"

@@ -16,8 +16,10 @@ brew install lalkalol1907/2fa-cli/twofa
 
 The formula is named `twofa`; the executable is `2fa`. This is a third-party
 tap, so installing it does not require acceptance into `homebrew/core`.
-Homebrew builds from source and installs Bash completions. Rust is a build
-dependency; it is not needed to run the installed executable.
+The binary release formula downloads a ready-made executable for Apple Silicon
+or Intel and installs Bash completions. It has no Rust or LLVM dependencies.
+Requires macOS 14 (Sonoma) or newer. The source formula remains active until
+the binary release is published and `scripts/update-homebrew.sh` is run.
 
 ```sh
 2fa add github                 # Prompts for a secret without echoing it
@@ -48,35 +50,49 @@ CI checks Apple Silicon and Intel macOS, plus builds and tests the Homebrew
 formula against the current checkout. The formula test uses a temporary account
 index and does not write secrets to Keychain.
 
-## Publish the first Homebrew release
+## Publish a binary Homebrew release
 
-Run these steps yourself after reviewing the changes. The repository itself
-is the tap, so no second GitHub repository is needed.
+The repository itself is the tap; no second GitHub repository is needed.
+The existing tags remain unchanged. The next version is **0.1.1**.
 
-1. Commit the source, MIT license, README, formula, scripts, and CI.
-2. Tag that commit as `v0.1.0` and push the commit and tag to GitHub.
-3. Run `bash scripts/update-homebrew.sh`. It downloads the tagged archive,
-   verifies its version, and updates the formula URL and SHA-256.
-4. Commit and push the updated formula.
-5. Verify the published package:
+1. Commit and push these changes yourself, including `Cargo.lock`.
+2. Create and push **v0.1.1** on that commit. The Binary release workflow builds
+   and tests Apple Silicon and Intel binaries, then publishes both archives,
+   their checksums and a generated `twofa.rb` in a GitHub Release.
+3. Wait for Binary release to finish successfully, then run:
 
    ```sh
-   brew tap lalkalol1907/2fa-cli https://github.com/lalkalol1907/2fa-cli
-   brew install --build-from-source lalkalol1907/2fa-cli/twofa
-   brew test lalkalol1907/2fa-cli/twofa
-   brew audit --strict lalkalol1907/2fa-cli/twofa
+   bash scripts/update-homebrew.sh
    ```
 
-Before step 3, the formula references the release Git tag. Once updated, it
-uses a checksummed release archive. Do not move a published tag. For later
-releases, update the Cargo version and lockfile, publish a matching tag,
-then run `bash scripts/update-homebrew.sh` and commit the updated formula.
+   This downloads both published archives, checks their versions, and replaces
+   `Formula/twofa.rb` with the binary formula containing their SHA-256 checksums.
+   It removes the Rust build dependency. It never commits or pushes changes.
+4. Commit and push the updated formula, then verify:
 
-For inclusion in `homebrew/core`, publish a stable release and follow the
-[Homebrew acceptance policy](https://docs.brew.sh/Acceptable-Formulae) and
-[submission guide](https://docs.brew.sh/Adding-Software-to-Homebrew).
-Acceptance is decided by Homebrew maintainers. The custom tap is usable
-independently of that process.
+   ```sh
+   brew update
+   brew upgrade lalkalol1907/2fa-cli/twofa
+   brew test lalkalol1907/2fa-cli/twofa
+   ```
+
+For a fresh installation, use the tap and install commands above. Do not pass
+`--build-from-source`. Publishing the release alone does not update the tap;
+step 4 is required. Existing Rust/LLVM installations are not removed by upgrading
+2fa; `brew autoremove` can remove dependencies no longer required by any package.
+
+For later releases, update the Cargo version and lockfile, publish a matching
+tag, then repeat steps 3–4. Never move a published tag. The binary formula is
+for this custom tap; it is not a source-built `homebrew/core` submission.
+
+To build a local native archive for inspection:
+
+```sh
+bash scripts/package-release.sh
+```
+
+Archives include the binary, MIT license, version marker and Bash completions.
+Packaging rejects non-system dynamic library dependencies.
 
 ## License
 

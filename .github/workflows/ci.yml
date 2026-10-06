@@ -23,28 +23,35 @@ jobs:
       - run: cargo test --locked
       - run: cargo build --release --locked
       - run: ./target/release/2fa --version
-      - run: bash -n completions/2fa.bash scripts/update-homebrew.sh
+      - run: bash -n completions/2fa.bash scripts/*.sh
+      - run: bash scripts/package-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.os }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
 
   homebrew:
-    runs-on: macos-14
+    needs: rust
+    strategy:
+      matrix:
+        os: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Test formula against this checkout
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: dist
+      - name: Install and test binary formula
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           brew tap --custom-remote lalkalol1907/2fa-cli "$GITHUB_WORKSPACE"
-          # Use this checkout instead of an unpublished release tag on PRs.
-          VERSION=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -n 1)
-          ARCHIVE="$RUNNER_TEMP/twofa-$VERSION.tar.gz"
-          tar --exclude=.git --exclude=target -czf "$ARCHIVE" -C "$GITHUB_WORKSPACE" .
-          SHA=$(shasum -a 256 "$ARCHIVE" | cut -d ' ' -f 1)
           FORMULA="$(brew --repository lalkalol1907/2fa-cli)/Formula/twofa.rb"
-          ruby - "$FORMULA" "$ARCHIVE" "$SHA" <<'RUBY'
-          path, archive, sha = ARGV
-          source = File.read(path).sub(/^  url .*\n(?:  sha256 .*\n)?/, "  url \"file://#{archive}\"\n  sha256 \"#{sha}\"\n")
-          File.write(path, source)
-          RUBY
-          brew install --build-from-source lalkalol1907/2fa-cli/twofa
+          ruby scripts/generate-homebrew.rb dist "$FORMULA" "file://$GITHUB_WORKSPACE/dist"
+          test -z "$(brew deps lalkalol1907/2fa-cli/twofa)"
+          brew install lalkalol1907/2fa-cli/twofa
           brew test lalkalol1907/2fa-cli/twofa

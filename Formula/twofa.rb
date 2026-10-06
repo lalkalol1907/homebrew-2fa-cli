@@ -1,3 +1,5 @@
+# Bootstrap source formula. After publishing v0.1.1 binary assets, run
+# bash scripts/update-homebrew.sh to replace this with the checksummed binary formula.
 class Twofa < Formula
   desc "Generate TOTP 2FA codes from the terminal"
   homepage "https://github.com/lalkalol1907/2fa-cli"
